@@ -1,0 +1,142 @@
+import pygame
+from random import randint
+import math
+import time
+
+# COLORS
+white = (255, 255, 255)
+black = (0, 0, 0)
+red = (255, 0, 0)
+
+# CAR SETTINGS
+KEYS = []
+START_POS = [400, 485]
+maxSpeed = 3
+acceleration = 0.10
+deacceleration = 0.06
+drag = 0.05
+turnSpeed = 3
+
+# WINDOW SETTINGS
+pygame.init()
+(width, height) = (800, 600)
+GD = pygame.display.set_mode((width, height))
+pygame.display.set_caption('Race AI')
+GD.fill(white)
+clock = pygame.time.Clock()
+image = pygame.transform.scale(pygame.image.load(r"C:\Users\jaimy\Downloads\watermakr.jpg"), (40, 22))
+track = pygame.transform.scale(pygame.image.load(r"C:\Users\jaimy\Downloads\racetrack.png"), (800, 600))
+
+# AI SETTINGS
+currentGen = []
+
+# KEYS
+# w - 1, s - 0, a - 3, d - 2
+
+def spawnGen():
+    for i in range(1):
+        currentGen.append(Car(image, START_POS[0], START_POS[1], 0, [], 0))
+
+class Car():
+    def __init__(self, image, x, y, speed, brain, fitness):
+        self.image = image
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.brain = brain
+        self.fitness = fitness
+        self.angle = 0 
+        self.rect = self.image.get_rect(center=(self.x, self.y)) 
+
+    def move(self):
+        if 0 in KEYS:
+            self.speed += deacceleration
+        if 1 in KEYS:
+            self.speed -= acceleration
+   
+        if self.speed != 0:
+            if 3 in KEYS:  
+                if self.speed > 0:
+                    self.angle += turnSpeed  
+                else:
+                    self.angle -= turnSpeed 
+           
+            if 2 in KEYS:  
+                if self.speed > 0:
+                    self.angle -= turnSpeed 
+                else:
+                    self.angle += turnSpeed  
+
+        #CALC ANGLE
+        radians = math.radians(self.angle)
+        self.x += self.speed * math.cos(radians)
+        self.y += self.speed * math.sin(radians)
+
+        if self.speed > 0:
+            if self.speed > maxSpeed:
+                self.speed = maxSpeed
+            if (self.speed <= drag):
+                self.speed = 0
+            else:
+                self.speed -= drag
+
+        elif self.speed < 0:
+            if self.speed < -maxSpeed:
+                self.speed = -maxSpeed
+            self.speed += drag
+
+        # UPDATE LOCATION
+        self.rect = self.image.get_rect(center=(self.x, self.y))
+
+    def draw(self):
+        # ROTATE SPRITE
+        rotated_image = pygame.transform.rotate(self.image, -self.angle)  # Draai tegen de klok in
+        rotated_rect = rotated_image.get_rect(center=self.rect.center)  # Zorg dat het draait om het midden
+        GD.blit(rotated_image, rotated_rect.topleft)
+
+    def checkCollision(self):
+        if GD.get_at((int(self.x), int(self.y))) == black:
+            print("collision")
+        if GD.get_at((int(self.x), int(self.y))) == red:
+            print("finish")
+
+spawnGen()
+
+running = True
+while running:
+    GD.fill(white)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_w:
+                KEYS.append(1)
+            if event.key == pygame.K_s:
+                KEYS.append(0)
+            if event.key == pygame.K_a:
+                KEYS.append(3)
+            if event.key == pygame.K_d:
+                KEYS.append(2)
+
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_w:
+                KEYS.remove(1)
+            if event.key == pygame.K_s:
+                KEYS.remove(0)
+            if event.key == pygame.K_a:
+                KEYS.remove(3)
+            if event.key == pygame.K_d:
+                KEYS.remove(2)
+
+    for i in range(len(currentGen)):
+        currentGen[i].draw()
+        currentGen[i].move()
+    
+    GD.blit(track, (0, 0))
+
+    for i in range(len(currentGen)):
+        currentGen[i].checkCollision()
+
+    pygame.display.update()
+    pygame.display.flip()
+    clock.tick(60)
