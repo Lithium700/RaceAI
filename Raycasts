@@ -1,0 +1,44 @@
+import pygame
+import math
+
+class GameObject:
+    def __init__(self, x, y, angle=0):
+        self.position = pygame.Vector2(x, y)
+        self.angle = angle  # Angle in degrees
+
+    @property
+    def forward(self):
+        # Convert angle to radians
+        radians = math.radians(self.angle)
+        # Calculate forward direction
+        return pygame.Vector2(math.cos(radians), math.sin(radians))
+
+    @property
+    def left(self):
+        # Rotate forward vector by 90 degrees (counter-clockwise)
+        return pygame.Vector2(-self.forward.y, self.forward.x)
+
+    @property
+    def right(self):
+        # Rotate forward vector by -90 degrees (clockwise)
+        return pygame.Vector2(self.forward.y, -self.forward.x)
+
+    def position_in_front(self, distance):
+        return self.position + self.forward * distance
+
+    def position_to_left(self, distance):
+        return self.position + self.left * distance
+
+    def position_to_right(self, distance):
+        return self.position + self.right * distance
+
+# Example usage:
+obj = GameObject(100, 100, 45)  # Positioned at (100, 100) with a 45-degree angle
+
+position_in_front = obj.position_in_front(10)  # Position 10 pixels in front
+position_to_left = obj.position_to_left(10)      # Position 10 pixels to the left
+position_to_right = obj.position_to_right(10)    # Position 10 pixels to the right
+
+print("Position in front:", position_in_front)
+print("Position to left:", position_to_left)
+print("Position to right:", position_to_right)
