@@ -1,0 +1,249 @@
+import pygame
+from random import randint
+import math
+import time
+
+# COLORS
+white = (255, 255, 255)
+black = (0, 0, 0)
+red = (255, 0, 0)
+
+# CAR SETTINGS
+KEYS = []
+START_POS = [400, 485]
+maxSpeed = 3
+acceleration = 0.10
+deacceleration = 0.06
+drag = 0.05
+turnSpeed = 3
+
+# WINDOW SETTINGS
+pygame.init()
+(width, height) = (800, 600)
+GD = pygame.display.set_mode((width, height))
+pygame.display.set_caption('Race AI')
+GD.fill(white)
+clock = pygame.time.Clock()
+cooldown = 6 # amount of frames before the next collision check
+cooldownid = -1 # keeps track of the passed frames
+carimage = pygame.transform.scale(pygame.image.load(r"H:\informatica\RaceAI\greencar.png"), (40, 22))
+track = pygame.transform.scale(pygame.image.load(r"H:\informatica\RaceAI\racetrack.png"), (800, 600))
+greentrack = pygame.transform.scale(pygame.image.load(r"H:\informatica\RaceAI\greentrack.png"), (800, 600))
+finishline = pygame.transform.scale(pygame.image.load(r"H:\informatica\RaceAI\finishline.png"), (7, 100))
+
+# AI SETTINGS
+currentGen = []
+bestCar = 0
+bestFitness = 0
+eliteFitness = 0
+
+
+# KEYS
+# w - 1, s - 0, a - 3, d - 2
+
+def spawnGen():
+    for i in range(1):
+        currentGen.append(Car(carimage, START_POS[0], START_POS[1], 0, [], 0, 0, 180))
+
+class Car():
+    def __init__(self, image, x, y, speed, brain, fitness, position, rotation):
+        self.image = image
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.brain = brain
+        self.fitness = fitness
+        self.angle = 0 
+        self.rect = self.image.get_rect(center=(self.x, self.y)) 
+        self.position = pygame.Vector2(self.x, self.y)
+        self.rotation = rotation
+
+    @property
+    def forward(self):
+        # Convert angle to radians
+        radians = math.radians(self.rotation)
+        # Calculate forward direction
+        return pygame.Vector2(math.cos(radians), math.sin(radians))
+
+    @property
+    def left(self):
+        # Rotate forward vector by -90 degrees (clockwise)
+        return pygame.Vector2(self.forward.y, -self.forward.x)
+
+    @property
+    def right(self):
+        # Rotate forward vector by 90 degrees (counter-clockwise)
+        return pygame.Vector2(-self.forward.y, self.forward.x)
+
+    def position_to_front(self, distance):
+        return self.position + self.forward * distance
+
+    def position_to_left(self, distance):
+        return self.position + self.left * distance
+
+    def position_to_right(self, distance):
+        return self.position + self.right * distance
+
+    def distanceToFront(self):
+        pos = 0
+        for i in range(60):
+            pos = self.position_to_front(10+(i*10))
+            if (pos.x < 0 or pos.x > width or pos.y < 0 or pos.y > height):
+                for j in range(10):
+                    pos = self.position_to_front((10+((i-1)*10))-(j+1))
+                    if GD.get_at((int(pos.x), int(pos.y))) == black:
+                        print("Position to front: " + str((10+((i-1)*10))-(j+1)))
+                        return
+            else:
+                if GD.get_at((int(pos.x), int(pos.y))) == black:
+                    for j in range(10):
+                        pos = self.position_to_front((10+(i*10))-(j+1))
+                        if GD.get_at((int(pos.x), int(pos.y))) != black:
+                            print("Position to front: " + str((10+(i*10))-(j+1)))
+                            return
+
+    def distanceToLeft(self):
+        pos = 0
+        for i in range(60):
+            pos = self.position_to_left(10+(i*10))
+            if (pos.x < 0 or pos.x > width or pos.y < 0 or pos.y > height):
+                for j in range(10):
+                    pos = self.position_to_left((10+((i-1)*10))-(j+1))
+                    if GD.get_at((int(pos.x), int(pos.y))) == black:
+                        print("Position to left: " + str((10+((i-1)*10))-(j+1)))
+                        return
+            else:
+                if GD.get_at((int(pos.x), int(pos.y))) == black:
+                    for j in range(10):
+                        pos = self.position_to_left((10+(i*10))-(j+1))
+                        if GD.get_at((int(pos.x), int(pos.y))) != black:
+                            print("Position to left: " + str((10+(i*10))-(j+1)))
+                            return
+
+    
+    def distanceToRight(self):
+        pos = 0
+        for i in range(60):
+            pos = self.position_to_right(10+(i*10))
+            if (pos.x < 0 or pos.x > width or pos.y < 0 or pos.y > height):
+                for j in range(10):
+                    pos = self.position_to_right((10+((i-1)*10))-(j+1))
+                    if GD.get_at((int(pos.x), int(pos.y))) == black:
+                        print("Position to right: " + str((10+((i-1)*10))-(j+1)))
+                        return
+            else:
+                if GD.get_at((int(pos.x), int(pos.y))) == black:
+                    for j in range(10):
+                        pos = self.position_to_right((10+(i*10))-(j+1))
+                        if GD.get_at((int(pos.x), int(pos.y))) != black:
+                            print("Position to right: " + str((10+(i*10))-(j+1)))
+                            return
+
+    def move(self):
+        if 0 in KEYS:
+            self.speed += deacceleration
+        if 1 in KEYS:
+            self.speed -= acceleration
+   
+        if self.speed != 0:
+            if 3 in KEYS:  
+                if self.speed > 0:
+                    self.angle += turnSpeed  
+                else:
+                    self.angle -= turnSpeed 
+           
+            if 2 in KEYS:  
+                if self.speed > 0:
+                    self.angle -= turnSpeed 
+                else:
+                    self.angle += turnSpeed  
+
+        #CALC ANGLE
+        radians = math.radians(self.angle)
+        self.x += self.speed * math.cos(radians)
+        self.y += self.speed * math.sin(radians)
+
+        if self.speed > 0:
+            if self.speed > maxSpeed:
+                self.speed = maxSpeed
+            if (self.speed <= drag):
+                self.speed = 0
+            else:
+                self.speed -= drag
+
+        elif self.speed < 0:
+            if self.speed < -maxSpeed:
+                self.speed = -maxSpeed
+            self.speed += drag
+
+        # UPDATE LOCATION
+        self.rect = self.image.get_rect(center=(self.x, self.y))
+        self.position = pygame.Vector2(self.x, self.y)
+        self.rotation = self.angle + 180
+
+    def draw(self):
+        # ROTATE SPRITE
+        rotated_image = pygame.transform.rotate(self.image, -self.angle)  # Draai tegen de klok in
+        rotated_rect = rotated_image.get_rect(center=self.rect.center)  # Zorg dat het draait om het midden
+        GD.blit(rotated_image, rotated_rect.topleft)
+
+    def checkCollision(self):
+        if GD.get_at((int(self.x), int(self.y))) == black:
+            print("collision")
+    
+    def checkFinish(self):
+        if GD.get_at((int(self.x), int(self.y))) == red:
+            print("finish")
+
+spawnGen()
+
+running = True
+while running:
+    GD.fill(white)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_w:
+                KEYS.append(1)
+            if event.key == pygame.K_s:
+                KEYS.append(0)
+            if event.key == pygame.K_a:
+                KEYS.append(3)
+            if event.key == pygame.K_d:
+                KEYS.append(2)
+
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_w:
+                KEYS.remove(1)
+            if event.key == pygame.K_s:
+                KEYS.remove(0)
+            if event.key == pygame.K_a:
+                KEYS.remove(3)
+            if event.key == pygame.K_d:
+                KEYS.remove(2)
+
+    for i in range(len(currentGen)):
+        currentGen[i].draw()
+        currentGen[i].move()
+    
+    GD.blit(finishline, (450, 435))
+    GD.blit(track, (0, 0))
+
+    for i in range(len(currentGen)):
+       currentGen[i].checkFinish()
+
+    cooldownid += 1
+    if cooldownid >= cooldown:
+        cooldownid = 0
+        for i in range(len(currentGen)):
+            currentGen[i].checkCollision()
+            currentGen[i].distanceToFront()
+            currentGen[i].distanceToLeft()
+            currentGen[i].distanceToRight()
+
+    GD.blit(greentrack, (0, 0))
+
+    pygame.display.update()
+    pygame.display.flip()
+    clock.tick(60)
