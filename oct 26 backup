@@ -1,0 +1,496 @@
+import pygame
+from random import randint
+import math
+import time
+
+# COLORS
+white = (255, 255, 255)
+black = (0, 0, 0)
+grey = (200, 200, 200)
+red = (255, 0, 0)
+
+# CAR SETTINGS
+START_POS = [425, 485]
+maxSpeed = 3
+acceleration = 0.10
+deacceleration = 0.06
+drag = 0.05
+turnSpeed = 3
+
+# WINDOW SETTINGS
+pygame.init()
+(width, height) = (800, 600)
+GD = pygame.display.set_mode((width, height))
+pygame.display.set_caption('Race AI')
+GD.fill(white)
+clock = pygame.time.Clock()
+cooldown = 6 # amount of frames before the next collision check
+cooldownid = -1 # keeps track of the passed frames
+carimage = pygame.transform.scale(pygame.image.load(r"C:\Users\jaimy\Downloads\greencar.png"), (40, 22))
+track = pygame.transform.scale(pygame.image.load(r"C:\Users\jaimy\Downloads\racetrack.png"), (800, 600))
+greentrack = pygame.transform.scale(pygame.image.load(r"C:\Users\jaimy\Downloads\greentrack.png"), (800, 600))
+finishline = pygame.transform.scale(pygame.image.load(r"C:\Users\jaimy\Downloads\finishline.png"), (7, 100))
+checkpoint = pygame.transform.scale(pygame.image.load(r"C:\Users\jaimy\Downloads\checkpoints.png"), (800, 600))
+
+# AI SETTINGS
+currentGen = []
+bestFitness = 0
+eliteFitness = 0
+
+# NEURAL NETWORK SETTINGS
+inputSpread = 20
+hiddenSpread = 20
+biasSpread = 50
+
+INPUTNEURONS = 5
+HIDDENNEURONS = 3
+OUTPUTNEURONS = 3
+activation = [-1, 100, 100]
+bestinputweights = []
+besthiddenweights = []
+besthiddenbias = []
+bestoutputbias = []
+
+eliteinputweights = []
+elitehiddenweights = []
+elitehiddenbias = []
+eliteoutputbias = []
+
+# KEYS
+# w - 1, s - 0, a - 3, d - 2
+
+def reset():
+    global bestFitness
+    global eliteFitness
+    global bestinputweights
+    global besthiddenweights
+    global besthiddenbias
+    global bestoutputbias
+    global eliteinputweights
+    global elitehiddenweights
+    global elitehiddenbias
+    global eliteoutputbias
+    bestFitness = 0
+    for i in range(len(currentGen)):
+        if currentGen[i].fitness > bestFitness:
+            bestFitness = currentGen[i].fitness
+            bestinputweights = currentGen[i].inputweights
+            besthiddenweights = currentGen[i].hiddenweights
+            besthiddenbias = currentGen[i].hiddenbias
+            bestoutputbias = currentGen[i].outputbias
+        if currentGen[i].fitness >= eliteFitness:
+            eliteFitness = currentGen[i].fitness
+            eliteinputweights = currentGen[i].inputweights
+            elitehiddenweights = currentGen[i].hiddenweights
+            elitehiddenbias = currentGen[i].hiddenbias
+            eliteoutputbias = currentGen[i].outputbias
+    
+    if bestFitness < eliteFitness:
+        bestinputweights = eliteinputweights
+        besthiddenweights = elitehiddenweights
+        besthiddenbias = elitehiddenbias
+        bestoutputbias = eliteoutputbias
+    
+    print("Best fitness: " + str(bestFitness))
+    print("Elite fitness: " + str(eliteFitness))
+
+    currentGen.clear()
+
+    spawnGen()
+    if bestFitness == 0:
+        for i in range(len(currentGen)):
+            currentGen[i].setupNetwork()
+    else:
+        for i in range(len(currentGen)):
+            currentGen[i].modifyNetwork()
+
+def spawnGen():
+    for i in range(40):
+        currentGen.append(Car(carimage, START_POS[0], START_POS[1], 0, 0, 180, [], [], [], bestinputweights.copy(), besthiddenweights.copy(), besthiddenbias.copy(), bestoutputbias.copy(), [], False, False, 0))
+
+class Car():
+    def __init__(self, image, x, y, speed, fitness, rotation, inputs, hidden, output, inputweights, hiddenweights, hiddenbias, outputbias, KEYS, dead, cooldown, countdown):
+        self.image = image
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.fitness = fitness
+        self.angle = 0 
+        self.rect = self.image.get_rect(center=(self.x, self.y)) 
+        self.position = pygame.Vector2(self.x, self.y)
+        self.rotation = rotation
+        self.inputs = inputs
+        self.hidden = hidden
+        self.output = output
+        self.inputweights = inputweights
+        self.hiddenweights = hiddenweights
+        self.hiddenbias = hiddenbias
+        self.outputbias = outputbias
+        self.KEYS = KEYS
+        self.dead = dead
+        self.cooldown = cooldown
+        self.countdown = countdown
+
+    @property
+    def forward(self):
+        # Convert angle to radians
+        radians = math.radians(self.rotation)
+        # Calculate forward direction
+        return pygame.Vector2(math.cos(radians), math.sin(radians))
+
+    @property
+    def left(self):
+        # Rotate forward vector by -90 degrees (clockwise)
+        return pygame.Vector2(self.forward.y, -self.forward.x)
+
+    @property
+    def right(self):
+        # Rotate forward vector by 90 degrees (counter-clockwise)
+        return pygame.Vector2(-self.forward.y, self.forward.x)
+    
+    @property
+    def left_forward(self):
+        # Rotate forward vector by -45 degrees (clockwise)
+        radians = math.radians(self.rotation - 45)
+        return pygame.Vector2(math.cos(radians), math.sin(radians))
+
+    @property
+    def right_forward(self):
+        # Rotate forward vector by 45 degrees (counter-clockwise)
+        radians = math.radians(self.rotation + 45)
+        return pygame.Vector2(math.cos(radians), math.sin(radians))
+
+    def position_to_front(self, distance):
+        return self.position + self.forward * distance
+
+    def position_to_left(self, distance):
+        return self.position + self.left * distance
+
+    def position_to_right(self, distance):
+        return self.position + self.right * distance
+    
+    def position_to_forward_left(self, distance):
+        return self.position + self.left_forward * distance
+
+    def position_to_forward_right(self, distance):
+        return self.position + self.right_forward * distance
+
+    def distanceToFront(self):
+        pos = 0
+        for i in range(60):
+            pos = self.position_to_front(10+(i*10))
+            if (pos.x < 0 or pos.x > width or pos.y < 0 or pos.y > height):
+                for j in range(10):
+                    pos = self.position_to_front((10+((i-1)*10))-(j+1))
+                    if GD.get_at((int(pos.x), int(pos.y))) == black:
+                        #print("Position to front: " + str((10+((i-1)*10))-(j+1)))
+                        self.inputs[0] = (10+((i-1)*10))-(j+1)
+                        return
+            else:
+                if GD.get_at((int(pos.x), int(pos.y))) == black:
+                    for j in range(10):
+                        pos = self.position_to_front((10+(i*10))-(j+1))
+                        if GD.get_at((int(pos.x), int(pos.y))) != black:
+                            #print("Position to front: " + str((10+(i*10))-(j+1)))
+                            self.inputs[0] = (10+(i*10))-(j+1)
+                            return
+
+    def distanceToLeft(self):
+        pos = 0
+        for i in range(60):
+            pos = self.position_to_left(10+(i*10))
+            if (pos.x < 0 or pos.x > width or pos.y < 0 or pos.y > height):
+                for j in range(10):
+                    pos = self.position_to_left((10+((i-1)*10))-(j+1))
+                    if GD.get_at((int(pos.x), int(pos.y))) == black:
+                        #print("Position to left: " + str((10+((i-1)*10))-(j+1)))
+                        self.inputs[1] = (10+((i-1)*10))-(j+1)
+                        return
+            else:
+                if GD.get_at((int(pos.x), int(pos.y))) == black:
+                    for j in range(10):
+                        pos = self.position_to_left((10+(i*10))-(j+1))
+                        if GD.get_at((int(pos.x), int(pos.y))) != black:
+                            #print("Position to left: " + str((10+(i*10))-(j+1)))
+                            self.inputs[1] = (10+(i*10))-(j+1)
+                            return
+    
+    def distanceToRight(self):
+        pos = 0
+        for i in range(60):
+            pos = self.position_to_right(10+(i*10))
+            if (pos.x < 0 or pos.x > width or pos.y < 0 or pos.y > height):
+                for j in range(10):
+                    pos = self.position_to_right((10+((i-1)*10))-(j+1))
+                    if GD.get_at((int(pos.x), int(pos.y))) == black:
+                        #print("Position to right: " + str((10+((i-1)*10))-(j+1)))
+                        self.inputs[2] = (10+((i-1)*10))-(j+1)
+                        return
+            else:
+                if GD.get_at((int(pos.x), int(pos.y))) == black:
+                    for j in range(10):
+                        pos = self.position_to_right((10+(i*10))-(j+1))
+                        if GD.get_at((int(pos.x), int(pos.y))) != black:
+                            #print("Position to right: " + str((10+(i*10))-(j+1)))
+                            self.inputs[2] = (10+(i*10))-(j+1)
+                            return
+
+    def distanceToForwardLeft(self):
+        pos = 0
+        for i in range(60):
+            pos = self.position_to_forward_left(10+(i*10))
+            if (pos.x < 0 or pos.x > width or pos.y < 0 or pos.y > height):
+                for j in range(10):
+                    pos = self.position_to_forward_left((10+((i-1)*10))-(j+1))
+                    if GD.get_at((int(pos.x), int(pos.y))) == black:
+                        #print("Position to forward left: " + str((10+((i-1)*10))-(j+1)))
+                        self.inputs[3] = (10+((i-1)*10))-(j+1)
+                        return
+            else:
+                if GD.get_at((int(pos.x), int(pos.y))) == black:
+                    for j in range(10):
+                        pos = self.position_to_forward_left((10+(i*10))-(j+1))
+                        if GD.get_at((int(pos.x), int(pos.y))) != black:
+                            #print("Position to forward left: " + str((10+(i*10))-(j+1)))
+                            self.inputs[3] = (10+(i*10))-(j+1)
+                            return
+                        
+    def distanceToForwardRight(self):
+        pos = 0
+        for i in range(60):
+            pos = self.position_to_forward_right(10+(i*10))
+            if (pos.x < 0 or pos.x > width or pos.y < 0 or pos.y > height):
+                for j in range(10):
+                    pos = self.position_to_forward_right((10+((i-1)*10))-(j+1))
+                    if GD.get_at((int(pos.x), int(pos.y))) == black:
+                        #print("Position to forward right: " + str((10+((i-1)*10))-(j+1)))
+                        self.inputs[4] = (10+((i-1)*10))-(j+1)
+                        return
+            else:
+                if GD.get_at((int(pos.x), int(pos.y))) == black:
+                    for j in range(10):
+                        pos = self.position_to_forward_right((10+(i*10))-(j+1))
+                        if GD.get_at((int(pos.x), int(pos.y))) != black:
+                            #print("Position to forward right: " + str((10+(i*10))-(j+1)))
+                            self.inputs[4] = (10+(i*10))-(j+1)
+                            return
+
+    def getInput(self):
+        self.distanceToFront()
+        self.distanceToLeft()
+        self.distanceToRight()
+        self.distanceToForwardLeft()
+        self.distanceToForwardRight()
+
+    def move(self):
+        if 10 in self.KEYS:
+            self.speed += deacceleration
+        if 0 in self.KEYS:
+            self.speed -= acceleration
+   
+        if self.speed != 0:
+            if 1 in self.KEYS:  
+                if self.speed > 0:
+                    self.angle += turnSpeed  
+                else:
+                    self.angle -= turnSpeed 
+           
+            if 2 in self.KEYS:  
+                if self.speed > 0:
+                    self.angle -= turnSpeed 
+                else:
+                    self.angle += turnSpeed  
+
+        #CALC ANGLE
+        radians = math.radians(self.angle)
+        self.x += self.speed * math.cos(radians)
+        self.y += self.speed * math.sin(radians)
+
+        if self.speed > 0:
+            if self.speed > maxSpeed:
+                self.speed = maxSpeed
+            if self.speed <= drag:
+                self.speed = 0
+            else:
+                self.speed -= drag
+
+        elif self.speed < 0:
+            if self.speed < -maxSpeed:
+                self.speed = -maxSpeed
+            self.speed += drag
+
+        # UPDATE LOCATION
+        self.rect = self.image.get_rect(center=(self.x, self.y))
+        self.position = pygame.Vector2(self.x, self.y)
+        self.rotation = self.angle + 180
+
+    def draw(self):
+        # ROTATE SPRITE
+        rotated_image = pygame.transform.rotate(self.image, -self.angle)  # Draai tegen de klok in
+        rotated_rect = rotated_image.get_rect(center=self.rect.center)  # Zorg dat het draait om het midden
+        GD.blit(rotated_image, rotated_rect.topleft)
+
+    def checkCollision(self):
+        if GD.get_at((int(self.x), int(self.y))) == black:
+            #print("collision")
+            self.dead = True
+            self.speed = 0
+            self.KEYS = []
+    
+    def checkRewardCollision(self):
+        # Check finish collision
+        if GD.get_at((int(self.x), int(self.y))) == red:
+            print("finish")
+
+        # Check checkpoint collision
+        if GD.get_at((int(self.x), int(self.y))) == grey:
+            if not self.cooldown:
+                self.fitness += 1
+            self.cooldown = True
+        else:
+            self.cooldown = False
+
+    def setupNetwork(self):
+        for i in range(INPUTNEURONS):
+            self.inputs.append(0)
+            for j in range(HIDDENNEURONS):
+                self.inputweights.append(randint(-120, 120)/100)
+        for i in range(HIDDENNEURONS):
+            self.hidden.append(0)
+            self.hiddenbias.append(randint(-50, 50))
+            for j in range(OUTPUTNEURONS):
+                self.hiddenweights.append(randint(-110, 110)/100)
+        for i in range(OUTPUTNEURONS):
+            self.output.append(0)
+            self.outputbias.append(randint(-50, 50))
+
+    def modifyNetwork(self):
+        for i in range(INPUTNEURONS):
+            self.inputs.append(0)
+            for j in range(HIDDENNEURONS):
+                self.inputweights[(i*HIDDENNEURONS) + j] += (randint(-inputSpread, inputSpread)/100)
+        for i in range(HIDDENNEURONS):
+            self.hidden.append(0)
+            self.hiddenbias[i] += randint(-biasSpread, biasSpread)
+            for j in range(OUTPUTNEURONS):
+                self.hiddenweights[(i*OUTPUTNEURONS) + j] += (randint(-hiddenSpread, hiddenSpread)/100)
+        for i in range(OUTPUTNEURONS):
+            self.output.append(0)
+            self.outputbias[i] += randint(-biasSpread, biasSpread)
+
+    def runNetwork(self):
+        for h in range(HIDDENNEURONS):
+            self.hidden[h] = self.hiddenbias[h]
+            for i in range(INPUTNEURONS):
+                self.hidden[h] += self.inputs[i] * self.inputweights[i]
+                self.hidden[h] = max(0, self.hidden[h])
+        for o in range(OUTPUTNEURONS):
+            self.output[o] = self.outputbias[o]
+            for h in range(HIDDENNEURONS):
+                self.output[o] += self.hidden[h] * self.hiddenweights[h]
+                self.output[o] = max(0, self.output[o])
+
+        for o in range(OUTPUTNEURONS):
+            if self.output[o] > activation[o]:
+                if o == 0:
+                    self.countdown = 0
+                if not o in self.KEYS:
+                    self.KEYS.append(o)
+            else:
+                self.countdown += 1
+                if o in self.KEYS:
+                    self.KEYS.remove(o)
+        if self.countdown > 30:
+            self.dead = True
+
+        if self.speed == 0:
+            self.countdown += 1
+        else:
+            self.countdown == 0
+
+        #if 1 in self.KEYS and 2 in self.KEYS:
+        #    if self.output[1] > self.output[2]:
+        #        self.KEYS.remove(2)
+        #    else:
+        #        self.KEYS.remove(1)
+
+        #print("inputs: " + str(inputs))
+        #print("hidden: " + str(hidden))
+        print("output: " + str(round(self.output[0])) + ", " + str(round(self.output[1])) + ", " + str(round(self.output[2])))
+        #print("input weights: " + str(inputweights))
+        #print("hidden bias: " + str(hiddenbias))
+        #print("hidden weights: " + str(hiddenweights))
+        #print("output bias: " + str(outputbias))
+        #print("fitness: " + str(self.fitness))
+
+spawnGen()
+for i in range(len(currentGen)):
+    currentGen[i].setupNetwork()
+
+running = True
+while running:
+    GD.fill(white)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_w:
+                for i in range(len(currentGen)):
+                    currentGen.KEYS.append(0)
+            if event.key == pygame.K_s:
+                for i in range(len(currentGen)):
+                    currentGen.KEYS.append(10)
+            if event.key == pygame.K_a:
+                for i in range(len(currentGen)):
+                    currentGen.KEYS.append(1)
+            if event.key == pygame.K_d:
+                for i in range(len(currentGen)):
+                    currentGen.KEYS.append(2)
+
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_w:
+                for i in range(len(currentGen)):
+                    currentGen.KEYS.remove(1)
+            if event.key == pygame.K_s:
+                for i in range(len(currentGen)):
+                    currentGen.KEYS.remove(0)
+            if event.key == pygame.K_a:
+                for i in range(len(currentGen)):
+                    currentGen.KEYS.remove(3)
+            if event.key == pygame.K_d:
+                for i in range(len(currentGen)):
+                    currentGen.KEYS.remove(2)
+
+    for i in range(len(currentGen)):
+        if not currentGen[i].dead:
+            currentGen[i].move()
+            currentGen[i].draw()
+    
+    GD.blit(finishline, (450, 435))
+    GD.blit(track, (0, 0))
+    GD.blit(checkpoint, (0, 0))
+
+    for i in range(len(currentGen)):
+        if not currentGen[i].dead:
+            currentGen[i].checkRewardCollision()
+
+    allDead = False
+    cooldownid += 1
+    if cooldownid >= cooldown:
+        cooldownid = 0
+        allDead = True
+        for i in range(len(currentGen)):
+            if not currentGen[i].dead:
+                currentGen[i].checkCollision()
+                currentGen[i].getInput()
+                currentGen[i].runNetwork()
+                allDead = False
+    
+    if allDead:
+        reset()
+
+    GD.blit(greentrack, (0, 0))
+
+    pygame.display.update()
+    pygame.display.flip()
+    clock.tick(60)
