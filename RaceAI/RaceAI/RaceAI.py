@@ -148,8 +148,8 @@ def spawnGen():
         currentGen.append(Car(carimage, START_POS[0], START_POS[1], 0, 0, 180, [], [], [], bestinputweights.copy(), besthiddenweights.copy(), besthiddenbias.copy(), bestoutputbias.copy(), [], False, False, 0))
 
 class Car():
-  # In deze class wordt de auto gedefineerd. Self zorgt ervoor dat hij alles van de eigen auto pakt i.p.v een andere auto
-  def __init__(self, image, x, y, speed, fitness, rotation, inputs, hidden, output, inputweights, hiddenweights, hiddenbias, outputbias, KEYS, dead, cooldown, countdown):
+    # In deze class wordt de auto gedefineerd. Self zorgt ervoor dat hij alles van de eigen auto pakt i.p.v een andere auto
+    def __init__(self, image, x, y, speed, fitness, rotation, inputs, hidden, output, inputweights, hiddenweights, hiddenbias, outputbias, KEYS, dead, cooldown, countdown):
         self.image = image
         self.x = x
         self.y = y
