@@ -1,3 +1,4 @@
+# IMPORTS
 import pygame
 from random import randint
 import math
@@ -25,6 +26,8 @@ GD.fill(white)
 clock = pygame.time.Clock()
 cooldown = 6 # amount of frames before the next collision check
 cooldownid = -1 # keeps track of the passed frames
+
+# IMAGES
 carimage = pygame.transform.scale(pygame.image.load(r"images\greencar.png"), (40, 22))
 track = pygame.transform.scale(pygame.image.load(r"images\racetrack.png"), (800, 600))
 greentrack = pygame.transform.scale(pygame.image.load(r"images\mooibaan.png"), (800, 600))
@@ -47,11 +50,13 @@ HIDDENNEURONS = 3
 OUTPUTNEURONS = 3
 activation = [0.0, 0.0, 0.0]
 
+# BEST BRAIN
 bestinputweights = []
 besthiddenweights = []
 besthiddenbias = []
 bestoutputbias = []
 
+# ELITE BRAIN
 eliteinputweights = []
 elitehiddenweights = []
 elitehiddenbias = []
@@ -82,6 +87,7 @@ def softmax(outputs):
     return probabilities
 
 def reset():
+    # Deze variabelen worden global benoemd hierzo zodat de code de bestaande variabelen gebruikt en niet nieuwe aan maakt.
     global bestFitness
     global eliteFitness
     global bestinputweights
@@ -93,13 +99,16 @@ def reset():
     global elitehiddenbias
     global eliteoutputbias
     bestFitness = 0
+
     for i in range(len(currentGen)):
+        # Als de huidige fitness beter is dan de beste fitness van deze generatie dan slaan we zijn neural network op.
         if currentGen[i].fitness > bestFitness:
             bestFitness = currentGen[i].fitness
             bestinputweights = currentGen[i].inputweights
             besthiddenweights = currentGen[i].hiddenweights
             besthiddenbias = currentGen[i].hiddenbias
             bestoutputbias = currentGen[i].outputbias
+        # Als de huidige fitness beter is dan de beste fitness ooit dan slaan we zijn neural network op.
         if currentGen[i].fitness >= eliteFitness:
             eliteFitness = currentGen[i].fitness
             eliteinputweights = currentGen[i].inputweights
@@ -107,31 +116,40 @@ def reset():
             elitehiddenbias = currentGen[i].hiddenbias
             eliteoutputbias = currentGen[i].outputbias
     
+    # Als de beste fitness van deze generatie (best) slechter was dan de beste ooit, dan pakken we de beste neural network (elite) voor de volgende generatie.
+    # Dit doen we om te vermijden dat het neural network zich achteruit ontwikkelt
     if bestFitness < eliteFitness:
         bestinputweights = eliteinputweights
         besthiddenweights = elitehiddenweights
         besthiddenbias = elitehiddenbias
         bestoutputbias = eliteoutputbias
     
+    # Hier printen we na elke generatie de fitnesses
     print("Best fitness: " + str(bestFitness))
     print("Elite fitness: " + str(eliteFitness))
 
+    # Alle autos worden hiermee verwijderd en de lijst voor vrij gemaakt voor de nieuwe generatie.
     currentGen.clear()
 
+    # Hier maken we een nieuwe generatie aan.
     spawnGen()
     if bestFitness == 0:
         for i in range(len(currentGen)):
+            # Als alle autos geen fitness gehaald hebben, dan genereren we weer compleet willekeurige neural networks.
             currentGen[i].setupNetwork()
     else:
         for i in range(len(currentGen)):
+            # Als de autos wel fitness gehaald hebben, geven we de nieuwe generatie allemaal het beste brein van de vorige generatie en maken we kleine aanpassingen per auto.
             currentGen[i].modifyNetwork()
 
+# Hier maken we een nieuwe generatie aan
 def spawnGen():
     for i in range(GENERATIONSIZE):
         currentGen.append(Car(carimage, START_POS[0], START_POS[1], 0, 0, 180, [], [], [], bestinputweights.copy(), besthiddenweights.copy(), besthiddenbias.copy(), bestoutputbias.copy(), [], False, False, 0))
 
 class Car():
-    def __init__(self, image, x, y, speed, fitness, rotation, inputs, hidden, output, inputweights, hiddenweights, hiddenbias, outputbias, KEYS, dead, cooldown, countdown):
+  # In deze class wordt de auto gedefineerd. Self zorgt ervoor dat hij alles van de eigen auto pakt i.p.v een andere auto
+  def __init__(self, image, x, y, speed, fitness, rotation, inputs, hidden, output, inputweights, hiddenweights, hiddenbias, outputbias, KEYS, dead, cooldown, countdown):
         self.image = image
         self.x = x
         self.y = y
@@ -153,6 +171,7 @@ class Car():
         self.cooldown = cooldown
         self.countdown = countdown
 
+    # Rotate
     @property
     def forward(self):
         # Convert angle to radians
@@ -180,8 +199,9 @@ class Car():
     def right_forward(self):
         # Rotate forward vector by 45 degrees (counter-clockwise)
         radians = math.radians(self.rotation + 45)
-        return pygame.Vector2(math.cos(radians), math.sin(radians))
+        return pygame.Vector2(math.cos(radians), math.sin(radians)) 
 
+    # Meten hoe ver de auto van de kant af zit.
     def position_to_front(self, distance):
         return self.position + self.forward * distance
 
@@ -197,6 +217,7 @@ class Car():
     def position_to_forward_right(self, distance):
         return self.position + self.right_forward * distance
 
+    # Uitrekenen hoever de auto van de kant af zit. De auto berekent dit in stappen van 10 pixels zodat de computer niet teveel berekeningen hoeft te doen.
     def distanceToFront(self):
         pos = 0
         for i in range(60):
@@ -205,7 +226,6 @@ class Car():
                 for j in range(10):
                     pos = self.position_to_front((10+((i-1)*10))-(j+1))
                     if GD.get_at((int(pos.x), int(pos.y))) == black:
-                        #print("Position to front: " + str((10+((i-1)*10))-(j+1)))
                         self.inputs[0] = (10+((i-1)*10))-(j+1)
                         return
             else:
@@ -213,7 +233,6 @@ class Car():
                     for j in range(10):
                         pos = self.position_to_front((10+(i*10))-(j+1))
                         if GD.get_at((int(pos.x), int(pos.y))) != black:
-                            #print("Position to front: " + str((10+(i*10))-(j+1)))
                             self.inputs[0] = (10+(i*10))-(j+1)
                             return
 
@@ -225,7 +244,6 @@ class Car():
                 for j in range(10):
                     pos = self.position_to_left((10+((i-1)*10))-(j+1))
                     if GD.get_at((int(pos.x), int(pos.y))) == black:
-                        #print("Position to left: " + str((10+((i-1)*10))-(j+1)))
                         self.inputs[1] = (10+((i-1)*10))-(j+1)
                         return
             else:
@@ -233,7 +251,6 @@ class Car():
                     for j in range(10):
                         pos = self.position_to_left((10+(i*10))-(j+1))
                         if GD.get_at((int(pos.x), int(pos.y))) != black:
-                            #print("Position to left: " + str((10+(i*10))-(j+1)))
                             self.inputs[1] = (10+(i*10))-(j+1)
                             return
     
@@ -245,7 +262,6 @@ class Car():
                 for j in range(10):
                     pos = self.position_to_right((10+((i-1)*10))-(j+1))
                     if GD.get_at((int(pos.x), int(pos.y))) == black:
-                        #print("Position to right: " + str((10+((i-1)*10))-(j+1)))
                         self.inputs[2] = (10+((i-1)*10))-(j+1)
                         return
             else:
@@ -253,7 +269,6 @@ class Car():
                     for j in range(10):
                         pos = self.position_to_right((10+(i*10))-(j+1))
                         if GD.get_at((int(pos.x), int(pos.y))) != black:
-                            #print("Position to right: " + str((10+(i*10))-(j+1)))
                             self.inputs[2] = (10+(i*10))-(j+1)
                             return
 
@@ -265,7 +280,6 @@ class Car():
                 for j in range(10):
                     pos = self.position_to_forward_left((10+((i-1)*10))-(j+1))
                     if GD.get_at((int(pos.x), int(pos.y))) == black:
-                        #print("Position to forward left: " + str((10+((i-1)*10))-(j+1)))
                         self.inputs[3] = (10+((i-1)*10))-(j+1)
                         return
             else:
@@ -273,7 +287,6 @@ class Car():
                     for j in range(10):
                         pos = self.position_to_forward_left((10+(i*10))-(j+1))
                         if GD.get_at((int(pos.x), int(pos.y))) != black:
-                            #print("Position to forward left: " + str((10+(i*10))-(j+1)))
                             self.inputs[3] = (10+(i*10))-(j+1)
                             return
                         
@@ -285,7 +298,6 @@ class Car():
                 for j in range(10):
                     pos = self.position_to_forward_right((10+((i-1)*10))-(j+1))
                     if GD.get_at((int(pos.x), int(pos.y))) == black:
-                        #print("Position to forward right: " + str((10+((i-1)*10))-(j+1)))
                         self.inputs[4] = (10+((i-1)*10))-(j+1)
                         return
             else:
@@ -293,10 +305,10 @@ class Car():
                     for j in range(10):
                         pos = self.position_to_forward_right((10+(i*10))-(j+1))
                         if GD.get_at((int(pos.x), int(pos.y))) != black:
-                            #print("Position to forward right: " + str((10+(i*10))-(j+1)))
                             self.inputs[4] = (10+(i*10))-(j+1)
                             return
 
+    # Self zorgt ervoor dat hij alles van de eigen auto pakt i.p.v een andere auto.
     def getInput(self):
         self.distanceToFront()
         self.distanceToLeft()
@@ -304,6 +316,7 @@ class Car():
         self.distanceToForwardLeft()
         self.distanceToForwardRight()
 
+    # Hier wordt gedefinieerd hoe snel de auto accelereert en draait
     def move(self):
         if 10 in self.KEYS:
             self.speed += deacceleration
@@ -352,6 +365,7 @@ class Car():
         rotated_rect = rotated_image.get_rect(center=self.rect.center)  # Zorg dat het draait om het midden
         GD.blit(rotated_image, rotated_rect.topleft)
 
+    # Als de auto op een zwart gedeelte komt dan verdwijnt de auto 
     def checkCollision(self):
         if GD.get_at((int(self.x), int(self.y))) == black:
             #print("collision")
@@ -359,62 +373,86 @@ class Car():
             self.speed = 0
             self.KEYS = []
     
+    # Raakt de auto de finish dan krijg je 3 punten
     def checkRewardCollision(self):
         # Check finish collision
         if GD.get_at((int(self.x), int(self.y))) == red:
             if not self.cooldown:
                 self.fitness += 3
             self.cooldown = True
-        # Check checkpoint collision
+        # Check checkpoint collision. De auto krijgt een punt wanneer de auto een grijze checkpoint in rijdt.
         elif GD.get_at((int(self.x), int(self.y))) == grey:
             if not self.cooldown:
                 self.fitness += 1
             self.cooldown = True
         else:
             self.cooldown = False
-
+    
+    # Hier maakt het een nieuwe neural network aan voor een auto.
     def setupNetwork(self):
         for i in range(INPUTNEURONS):
+            # Hier worden de input neurons aangemaakt.
             self.inputs.append(0)
             for j in range(HIDDENNEURONS):
+                # Hier maakt de code voor elke hidden neuron per input neuron een nieuwe weight aan.
                 self.inputweights.append(randint(-120, 120)/100)
         for i in range(HIDDENNEURONS):
+            # Hier worden de hidden neurons aangemaakt.
             self.hidden.append(0)
+            # Hier worden de hidden biases aangemaakt.
             self.hiddenbias.append(randint(-50, 50))
             for j in range(OUTPUTNEURONS):
+                # Hier maakt de code voor elke output neuron per hidden neuron een nieuwe weight aan.
                 self.hiddenweights.append(randint(-110, 110)/100)
         for i in range(OUTPUTNEURONS):
+            # Hier worden de output neurons aangemaakt.
             self.output.append(0)
+            # Hier worden de output biases aangemaakt.
             self.outputbias.append(randint(-50, 50))
 
+    # Hier wordt het neural network aangepast, zodat hij een klein beetje anders is.
     def modifyNetwork(self):
         for i in range(INPUTNEURONS):
+            # Hier worden de input neurons aangemaakt.
             self.inputs.append(0)
             for j in range(HIDDENNEURONS):
+                # Hier wordt elke input weight een klein beetje aangepast.
                 self.inputweights[(i*HIDDENNEURONS) + j] += (randint(-inputSpread, inputSpread)/100)
         for i in range(HIDDENNEURONS):
+            # Hier worden de hidden neurons aangemaakt.
             self.hidden.append(0)
+            # Hier wordt elke hidden bias aangepast.
             self.hiddenbias[i] += randint(-biasSpread, biasSpread)
             for j in range(OUTPUTNEURONS):
+                # Hier wordt elke hidden weight een klein beetje aangepast.
                 self.hiddenweights[(i*OUTPUTNEURONS) + j] += (randint(-hiddenSpread, hiddenSpread)/100)
         for i in range(OUTPUTNEURONS):
+            # Hier worden de output neurons aangemaakt.
             self.output.append(0)
+            # Hier wordt elke output bias aangepast.
             self.outputbias[i] += randint(-biasSpread, biasSpread)
 
+    # Het neural netwerk wordt hier gerunned.
     def runNetwork(self):
         for h in range(HIDDENNEURONS):
+            # Hier maken we elke hidden neuron zijn bias.
             self.hidden[h] = self.hiddenbias[h]
             for i in range(INPUTNEURONS):
+                # Hier wordt elke input neuron vermenigvuldigd met zijn weight en toegevoegd aan de hidden neuron.
                 self.hidden[h] += self.inputs[i] * self.inputweights[i]
                 self.hidden[h] = max(0, self.hidden[h])
         for o in range(OUTPUTNEURONS):
+            # Hier maken we elke output neuron zijn bias.
             self.output[o] = self.outputbias[o]
             for h in range(HIDDENNEURONS):
+                # Hier wordt elke hidden neuron vermenigvuldigd met zijn weight en toegevoegd aan de output neuron.
                 self.output[o] += self.hidden[h] * self.hiddenweights[h]
                 self.output[o] = max(0, self.output[o])
+                # Hier wordt elke output vereenvoudigd naar een getal tussen 0 en 1.
                 probabilities = softmax(self.output)
                 self.output = probabilities
 
+        # Als een output neuron boven zijn activatie waarde is drukt hij zijn bijbehorende toets in.
         for o in range(OUTPUTNEURONS):
             if self.output[o] > activation[o]:
                 if o == 0:
@@ -424,30 +462,26 @@ class Car():
             else:
                 self.countdown += 1
                 if o in self.KEYS:
+                    # Als een output neuron lager dan zijn activatie waarde is en zijn toets is ingedrukt dan wordt deze losgelaten.
                     self.KEYS.remove(o)
+        # Als de countdown meer dan 30 is dan verwijderen we de auto.
         if self.countdown > 30:
             self.dead = True
-
+        
+        # Als een auto stil staat tikt de countdown omhoog.
         if self.speed == 0:
             self.countdown += 1
         else:
             self.countdown == 0
 
+        # Om te vermijden dat links en rechts tegelijkertijd ingedrukt worden kijken we welke output waarde hoger is en drukken we alleen die toets in.
         if 1 in self.KEYS and 2 in self.KEYS:
             if self.output[1] > self.output[2]:
                 self.KEYS.remove(2)
             else:
                 self.KEYS.remove(1)
 
-        #print("inputs: " + str(inputs))
-        #print("hidden: " + str(hidden))
-        #print("output: " + str(round(self.output[0], 2)) + ", " + str(round(self.output[1], 2)) + ", " + str(round(self.output[2], 2)))
-        #print("input weights: " + str(inputweights))
-        #print("hidden bias: " + str(hiddenbias))
-        #print("hidden weights: " + str(hiddenweights))
-        #print("output bias: " + str(outputbias))
-        #print("fitness: " + str(self.fitness))
-
+    # Hier tekenen we het neural network van de beste auto. Dit heeft geen functie buiten het visuele aspect.
     def drawNetwork(self):        
         for i in range(INPUTNEURONS):
             for h in range(HIDDENNEURONS):
@@ -480,74 +514,59 @@ class Car():
             else:
                 pygame.draw.circle(GD, white, (NETWORKPOSITION[0] + LAYERSPACING * 2, NETWORKPOSITION[1] + ((i+1)*NEURONSPACING)), NEURONSIZE-NEURONOUTLINE)
 
+# Hier wordt enkel de eerste keer een groep auto's aangemaakt en hun neural networks aangemaakt.
 spawnGen()
 for i in range(len(currentGen)):
     currentGen[i].setupNetwork()
 
+# Dit is de Update() loop die elke frame gerunned wordt en alle logica geroepen wordt.
 running = True
 while running:
+    # Hier maken we de achtergrond wit.
     GD.fill(white)
+    # Dit fungeert als backup voor het sluiten van het programma.
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_w:
-                for i in range(len(currentGen)):
-                    currentGen.KEYS.append(0)
-            if event.key == pygame.K_s:
-                for i in range(len(currentGen)):
-                    currentGen.KEYS.append(10)
-            if event.key == pygame.K_a:
-                for i in range(len(currentGen)):
-                    currentGen.KEYS.append(1)
-            if event.key == pygame.K_d:
-                for i in range(len(currentGen)):
-                    currentGen.KEYS.append(2)
-
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_w:
-                for i in range(len(currentGen)):
-                    currentGen.KEYS.remove(1)
-            if event.key == pygame.K_s:
-                for i in range(len(currentGen)):
-                    currentGen.KEYS.remove(0)
-            if event.key == pygame.K_a:
-                for i in range(len(currentGen)):
-                    currentGen.KEYS.remove(3)
-            if event.key == pygame.K_d:
-                for i in range(len(currentGen)):
-                    currentGen.KEYS.remove(2)
-
+    
+    # Hier wordt elke auto bewogen en getekend mits het nog leeft.
     for i in range(len(currentGen)):
         if not currentGen[i].dead:
             currentGen[i].move()
             currentGen[i].draw()
     
+    # Hier wordt de finishlijn, de baan en checkpoints over de auto heen getekend.
     GD.blit(finishline, (450, 435))
     GD.blit(track, (0, 0))
     GD.blit(checkpoint, (0, 0))
 
+    # Hier wordt gekeken wanneer een auto een finishlijn of checkpoint voorbij gaat mits hij niet dood is.
     for i in range(len(currentGen)):
         if not currentGen[i].dead:
             currentGen[i].checkRewardCollision()
 
+
     allDead = False
     cooldownid += 1
+    # De cooldown zorgt ervoor dat we de zwaarste berekeningen niet elke frame uitvoeren, maar elke 6 frames. Met 60 fps is dat 10x per seconde.
     if cooldownid >= cooldown:
         cooldownid = 0
         allDead = True
+        # Hier kijken we voor elke auto of ze gebotst zijn met een muur, hoeveel pixels er zijn tussen de muren (input) en voeren we het neural network uit mits hij niet dood is.
         for i in range(len(currentGen)):
             if not currentGen[i].dead:
                 currentGen[i].checkCollision()
                 currentGen[i].getInput()
                 currentGen[i].runNetwork()
                 allDead = False
-    
+    # Als er een auto nog leeft dan wordt allDead false en wordt deze functie niet uitgevoerd, als alle autos dood zijn wordt reset() uitgevoerd.
     if allDead:
         reset()
 
+    # Nu de collision is gecheckt voor de zwarte baan (hij checkt alleen voor een zwarte pixel) kunnen we de mooie baan tekenen.
     GD.blit(greentrack, (0, 0))
 
+    # We checken voor elke levende auto wie de hoogste fitness heeft en tekenen vervolgens dit neural network.
     highestFitness = -1
     highestFitnessID = -1
     for i in range(len(currentGen)):
@@ -556,13 +575,16 @@ while running:
                 highestFitness = currentGen[i].fitness
                 highestFitnessID = i
 
+    # Als er geen beste neural network is tekenen we er geen
     if not highestFitnessID == -1:
         currentGen[highestFitnessID].drawNetwork()
 
+    # Dit update het scherm en zorgt ervoor dat we 60 fps krijgen.
     pygame.display.update()
     pygame.display.flip()
     clock.tick(60)
 
+# Als het programma afsluit printen we nog een keer de beste fitness van deze generatie, de beste fitness ooit en de fitnesses van de huidige fitnesses van alle levende autos.
 print("Best fitness: " + str(bestFitness))
 print("Elite fitness: " + str(eliteFitness))
 for i in range(len(currentGen)):
